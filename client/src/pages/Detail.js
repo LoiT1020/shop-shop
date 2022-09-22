@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@apollo/client";
 
+import { idbPromise } from "../utils/helpers";
 import { QUERY_PRODUCTS } from "../utils/queries";
 import { useStoreContext } from "../utils/GlobalState";
 import {
@@ -23,15 +24,31 @@ function Detail() {
   const { products, cart } = state;
 
   useEffect(() => {
+    // already in global store
     if (products.length) {
-      setCurrentProduct(products.find((product) => product._id === id));
-    } else if (data) {
+      setCurrentProduct(products.find(product => product._id === id));
+    } 
+    // retrieved from server
+    else if (data) {
       dispatch({
         type: UPDATE_PRODUCTS,
-        products: data.products,
+        products: data.products
+      });
+  
+      data.products.forEach((product) => {
+        idbPromise('products', 'put', product);
       });
     }
-  }, [products, data, dispatch, id]);
+    // get cache from idb
+    else if (!loading) {
+      idbPromise('products', 'get').then((indexedProducts) => {
+        dispatch({
+          type: UPDATE_PRODUCTS,
+          products: indexedProducts
+        });
+      });
+    }
+  }, [products, data, loading, dispatch, id]);
 
   const addToCart = () => {
     const itemInCart = cart.find((cartItem) => cartItem._id === id);
@@ -69,7 +86,7 @@ function Detail() {
 
           <p>
             <strong>Price:</strong>${currentProduct.price}{" "}
-            <button>Add to Cart</button>
+            <button  onClick={addToCart}>Add to Cart</button>
             <button
               disabled={!cart.find((p) => p._id === currentProduct._id)}
               onClick={removeFromCart}
